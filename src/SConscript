@@ -1,0 +1,718 @@
+#!/bin/python
+""" SConscript for main TRACE source code"""
+
+######################################################
+#  SConscript file for main TRACE source code
+######################################################
+import os
+import sys
+import fnmatch
+
+Import('*')
+
+######################################################
+#  Retrieve list of files that need to be compiled
+######################################################
+srcs = []
+for file in os.listdir(Dir('.').srcnode().abspath):
+   if fnmatch.fnmatch(file, "*.f90"):
+      srcs.append(file)
+
+for file in os.listdir(Dir('.').srcnode().abspath):
+   if fnmatch.fnmatch(file, "*.c"):
+      srcs.append(file)
+
+
+############################################
+#  Customize the construction environment  #
+############################################
+#
+if platform == 'cygwin':
+
+   if fcompiler == 'lahey':
+      print "Compiler " + fcompiler + " is currently unsupported on the " + platform + " platform"
+      print ""
+#   elif fcompiler == 'ifort12' or fcompiler == 'ifort16' or fcompiler == 'ifort17':
+#
+#      env['F90PATH'] = ['#' + tpr_build_dir,
+#                        '#' + iapws_build_dir,
+#                        '#' + common_build_dir,
+#                       ]
+#      dir = env.Dir("#/" + trace_build_dir)
+#      env['FORTRANMODDIR'] = dir
+#
+#      manifestFile = trace_build_dir + "/" + "trace.exe.intermediate.manifest"
+
+   elif fcompiler == 'ifort12' or fcompiler == 'ifort16' or fcompiler == 'ifort17':
+      # Redefine construction environment in order to replace certain posix-specific construction
+      # variables with values more appropriate for building on cygwin with Windows tool chain
+      env = Environment(options = opts, platform = 'cygwin', tools=['default', 'f90', 'msvc', 'mslink', 'mslib', 'msvs'])
+
+      # Setup the PATH environment variable so that SCONS can execute the compiler tools it needs
+      for path in path_dict[fcompiler][target_arch] + path_dict[ccompiler][target_arch]:
+         command = 'cygpath -u -p "' + path + '"' # transmute the path info from a Windows path to a cygwin path because
+         cygwin_path = os.popen(command).read()   # cygwin python will expect to execute compilers using unix path conventions
+         env.PrependENVPath('PATH', cygwin_path.rstrip('\n'))
+
+
+      # Setup the INCLUDE environment variable so that compiler tools know where to go for header files
+      for inc in include_dict[ccompiler][target_arch]:
+         env.AppendENVPath('INCLUDE', inc, 'ENV', ";")
+
+      # Setup the LIB environment variable so that the compiler tools know where to go for needed libraries
+      for lib in lib_dict[fcompiler][target_arch] + lib_dict[ccompiler][target_arch]:
+         env.AppendENVPath('LIB', lib, 'ENV', ";")
+
+      # Default C compiler options
+      env['CCFLAGS'] = ['/nologo',
+                       ]
+      env['CPPDEFINES'] = [
+                           '_MBCS',
+                           '_CONSOLE',
+                           '_WINDOWS'
+                          ]
+      #env['CPPDEFINES'] += cpp_arch_defines
+      env['CPPDEFINES'] += cpp_arch_strings[ccompiler][target_arch]
+
+      env['CPPDEFPREFIX'] = '/D'
+      env['CPPPATH'] = ['.',
+                        '../xdr'
+                       ]
+      env['CCCOMFLAGS'] = '$CPPFLAGS $_CPPDEFFLAGS $_CPPINCFLAGS /c ${SOURCES.windows} /Fo${TARGET.windows} $CCPCHFLAGS $CCPDBFLAGS'
+
+      env['OBJPREFIX'] = ''
+      env['OBJSUFFIX'] = '.obj'
+
+      env['LIBPREFIX'] = ''
+      env['LIBSUFFIX'] = '.lib'
+      env['LIBS'] = ['ws2_32.lib', 'winmm', 'wsock32', 'kernel32', 'user32', 'gdi32', 'winspool', 'comdlg32',
+                     'advapi32', 'shell32', 'ole32', 'oleaut32', 'uuid', 'odbc32', 'odbccp32'
+                    ]
+
+      env['F90'] = 'ifort'
+      env['F90COM'] = '$F90 $F90FLAGS $_F90INCFLAGS $_FORTRANMODFLAG /compile_only ${SOURCES.windows} /object:${TARGET.windows}'
+
+      # Default Fortran compiler options
+      env['F90FLAGS'] = ['/nologo',
+                        ]
+      env['INCPREFIX'] = '/I'
+      env['F90PATH'] = ['#' + tpr_build_dir,
+                        '#' + iapws_build_dir,
+                        '#' + common_build_dir,
+                        '#' + parcs_build_dir,
+                       ]
+      env['cvf_concat'] = build_utils.cvf_concat     # Define our own concatenation routine so that path names can be
+                                                     # permuted to use win32 path separators.  It is in build_support.py
+
+      env['_F90INCFLAGS'] = '${cvf_concat(INCPREFIX, F90PATH, INCSUFFIX, __env__, RDirs)}'
+
+      env['FORTRANMODDIRPREFIX'] = '/module:'
+      dir = env.Dir("#/" + trace_build_dir)
+      env['FORTRANMODDIR'] = dir
+
+      manifestFile = trace_build_dir + "/" + "trace.exe.intermediate.manifest"
+
+      # Default linker options
+      env['LINKFLAGS'] = ['/nologo',
+                          '/nodefaultlib:libcd',
+                          '/nodefaultlib:libc',
+                          '/subsystem:console',
+                          '/incremental:no',
+                          '/pdb:none',
+                          '/manifest',
+                          '/manifestfile:' + manifestFile,
+                          #'/stack:1000000',
+                          ]
+
+      # Now establish debug/release specific compiler flags and link options
+      if buildType == 'debug':
+         fortranFlags = ['/debug:full',                 # Enable full debug level information
+                         '/check:bounds',               # Generate run-time message when array bounds are exceeded
+                         '/check:format',               # Generate run-time message when FORMAT descriptor does not match the
+                                                        # data type
+                         '/check:pointer',              # Check for disassociated or uninitialized pointers
+                                                        # or unallocated allocatable objects
+                         '/check:uninit',               # Check for uninitialized variables
+                         '/check:output_conversion',    # Generate run-time message when format truncation occurs
+                         #'/check:arg_temp_created',
+                         '/stand:f95',                  # Generate warning for non-stardard F95 coding
+                         '/traceback',                  # Generate traceback information
+                         '/warn:interfaces',            # Check interfaces of all subroutines and functions against an external set of
+                                                        # interface blocks
+                         '/warn:declarations',          # Issue an error message for any undeclared variables
+                         #'/warn:unused',                # Enable warnings for a variable that is declared but never used
+                         '/Qvc8',                       # Specifies compatibility with MSVS 2005
+                         '/MT',                         # Tells linker to search for unresolved references in an optimized
+                                                        # multithreaded, static run-time library (LIBCMT.LIB).  This is
+                                                        # the same as /threads, /libs:static
+                         '/Qdiag-file:${SOURCES.base}.diag',  # write compiler diagnostics to a file
+                         '/Qtrapuv',                    # Initialize local variables to a strange value
+                         '/Qfp-stack-check',            # Check the stack for consistency
+                         '/assume:minus0',              # Allow TRACE to calculate negative zero
+                         '/fpe0',                       # Trap all floating point exceptions as errors (except underflows)
+                         '/O1',                         # This option tells the compiler to enables optimizations for speed and
+                                                        # disables some optimizations that increase code size and affect speed.
+                         '/Ob2',                        # Enables inlining of any function at the compiler's discretion.
+                         '/fp:source',
+                        ]
+         cFlags = ['/W0',                               # Write out normal compiler warning messages
+                   '/D "_DEBUG"',                       # define a debug specific preprocessor constant
+                   '/Od',                               # Generate debuggable object files
+                   '/RTC1',                             # Catch release-build errors in debug build
+                   '/Z7',                               # Put debug info in object files so that multi-process builds will work
+                   '/MT',                               # Tells linker to search for unresolved references in an optimized
+                                                        # multithreaded, static run-time library (LIBCMT.LIB).
+                  ]
+         linkOpts = []
+
+      elif buildType == 'release':
+         fortranFlags = ['/O2',                         # Generate level 2 optimized object files
+                         '/MT',                         # Tells linker to search for unresolved references in an optimized
+                                                        # multithreaded, static run-time library (LIBCMT.LIB)
+                         '/fp:source',
+                         '/Qdiag-file:${SOURCES.base}.diag',
+                        ]
+         cFlags = ['/W0',                               # No warnings generated
+                   '/D "NDEBUG"',                       # Define a release-specific preprocessor constant
+                   '/O2',                               # Generate level 2 optimized object files
+                   '/MT',                               # Tells linker to search for unresolved references in an optimized
+                                                        # multithreaded, static run-time library (LIBCMT.LIB)
+                  ]
+         linkOpts = []
+
+      else:
+        print "Not sure what type of build you want"
+        print ""
+        Exit(1)
+
+      env.Append(F90FLAGS = fortranFlags)
+      env.Append(LINKFLAGS = linkOpts)
+      env.Append(CCFLAGS = cFlags)
+
+   elif fcompiler == 'g95':
+      env = Environment(options = opts, platform = 'cygwin', tools=['default', 'fortran', 'f90'])
+      env.Append(ENV = {'PATH' : os.environ['PATH']})
+      env['CCFLAGS'] = ['-w']
+      env['CPPDEFINES'] = ['LINUX']
+      env['CPPPATH'] = ['/usr/include/tirpc']
+      env['LINK'] = 'g95'
+      env['LIBS'] = ['tirpc']
+      env['LINKFLAGS'] = ['-static',
+                         # '-mno-cygwin',
+                         ]
+
+      env['F90'] = 'g95'
+      env['F90FLAGS'] = '-fno-second-underscore'
+      env['F90PATH'] = ["#" + tpr_build_dir,
+                        '#' + iapws_build_dir,
+                        '#' + common_build_dir,
+                        '#' + parcs_build_dir,
+                       ]
+
+      env['FORTRANMODDIRPREFIX'] = '-fmod='
+      dir = env.Dir("#" + trace_build_dir)
+      env['FORTRANMODDIR'] = dir
+
+      if buildType == 'debug':
+         fortranFlags = ['-g',
+                         '-fbounds-check',
+                         '-ftrace=frame',
+                         '-Wall',
+                         '-Wextra',
+                         '-freal=nan',
+                        ]
+         cFlags = ['-g']
+      elif buildType == 'release':
+         fortranFlags = ['-O2',
+                         '-Wuninitialized',
+                        ]
+         cFlags = ['-O2']
+      else:
+         print "Unsupported buildType = " + buildType
+         print ""
+         Exit(1)
+
+      env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
+      env.Append(F90FLAGS = fortranFlags)
+      env.Append(CCFLAGS = cFlags)
+
+   elif fcompiler == 'gfortran':
+      env = Environment(options = opts, tools=['fortran', 'f90', 'default'])
+      env.Append(ENV = {'PATH' : os.environ['PATH']})
+      env['CCFLAGS'] = ['-w']
+      env['CPPDEFINES'] = ['LINUX']
+      env['LINK'] = 'gfortran'
+      env['LINKFLAGS'] = ''
+      env['F90'] = 'gfortran'
+      env['F90FLAGS'] = '-fno-second-underscore'
+      env['F90PATH'] = ["#" + tpr_build_dir,
+                        '#' + iapws_build_dir,
+                        '#' + common_build_dir,
+                        '#' + parcs_build_dir,
+                       ]
+
+      env['FORTRANMODDIRPREFIX'] = '-J'
+      dir = env.Dir("#/" + trace_build_dir)
+      env['FORTRANMODDIR'] = dir
+
+      if buildType == 'debug':
+         fortranFlags = ['-g']
+         cFlags = ['-g']
+      elif buildType == 'release':
+         fortranFlags = ['']
+         cFlags = ['-O2']
+      else:
+         print "Unsupported buildType = " + buildType
+         print ""
+         Exit(1)
+
+      env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
+      env.Append(F90FLAGS = fortranFlags)
+      env.Append(CCFLAGS = cFlags)
+
+#
+   elif fcompiler == 'salford':
+      print "Compiler " + fcompiler + " is currently unsupported on the " + platform + " platform"
+      print ""
+   else:
+      print "Compiler " + fcompiler + " is currently unsupported on the " + platform + " platform"
+      print ""
+
+
+elif platform == 'win32':
+
+   if fcompiler == 'cvf':
+      env = Environment(options = opts, tools=['default', 'cvf', 'mslink', 'msvc', 'mslib', 'msvs'])
+      env.Append(ENV = {'PATH' : os.environ['PATH'], 'INCLUDE' : os.environ['INCLUDE'], 'LIB' : os.environ['LIB']})
+
+      if buildType == 'debug':
+         print ""
+      elif buildType == 'release':
+         print ""
+      else:
+         print ""
+
+      print "Compiler " + fcompiler + " is currently unsupported on the " + platform + " platform"
+      print ""
+
+   elif fcompiler == 'g95':
+      env = Environment(options = opts)
+      env.Append(ENV = {'PATH' : os.environ['PATH'], 'INCLUDE' : os.environ['INCLUDE'], 'LIB' : os.environ['LIB']})
+
+      if buildType == 'debug':
+         print ""
+      elif buildType == 'release':
+         print ""
+      else:
+         print ""
+
+      print "Compiler " + fcompiler + " is currently unsupported on the " + platform + " platform"
+      print ""
+
+   else:
+      print "Compiler " + fcompiler + " is currently unsupported on the " + platform + " platform"
+      print ""
+
+
+elif platform == 'linux' or platform == 'linux2':
+
+   if fcompiler == 'lahey':
+      env = Environment(options = opts, tools=['fortran', 'default'])
+      env.Append(ENV = {'PATH' : os.environ['PATH']})
+      env['CCFLAGS'] = ['-w']
+      env['CPPDEFINES'] = ['LINUX']
+      env['LINK'] = 'lf95'
+      env['LINKFLAGS'] = '-Bdynamic'
+
+      env['F90'] = 'lf95'
+      env['F90FLAGS'] = '--nli'
+      env['F90PATH'] = ["#" + tpr_build_dir,
+                        '#' + iapws_build_dir,
+                        '#' + common_build_dir,
+                        '#' + parcs_build_dir,
+                       ]
+
+      env['FORTRANMODDIRPREFIX'] = '-M '
+      dir = env.Dir("#/" + trace_build_dir)
+      env['FORTRANMODDIR'] = dir
+
+      if buildType == 'debug':
+         fortranFlags = ['--trap',
+                         '--trace',
+                         '--chk aesu',
+                         '-g'
+                        ]
+         cFlags = ['-g']
+      elif buildType == 'release':
+         fortranFlags = ['-O']
+         cFlags = ['-O']
+      else:
+         print "Unsupported buildType = " + buildType
+         print ""
+         Exit(1)
+
+      env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
+      env.Append(F90FLAGS = fortranFlags)
+      env.Append(CCFLAGS = cFlags)
+
+   elif fcompiler == 'pathscale':
+      env = Environment(options = opts, tools=['fortran', 'f90', 'default'])
+      env.Append(ENV = {'PATH' : os.environ['PATH']})
+      env['CCFLAGS'] = ['-w']
+      env['CPPDEFINES'] = ['LINUX']
+      env['LINK'] = 'pathf95'
+      env['LINKFLAGS'] = []
+
+      env['F90'] = 'pathf95'
+      env['F90FLAGS'] = ['-m64',
+                         '-mcpu=opteron',
+                         '-fno-second-underscore',
+                        ]
+      env['F90PATH'] = ["#" + tpr_build_dir,
+                        '#' + iapws_build_dir,
+                        '#' + common_build_dir,
+                        '#' + parcs_build_dir,
+                       ]
+
+      env['FORTRANMODDIRPREFIX'] = '-module '
+      dir = env.Dir("#/" + trace_build_dir)
+      env['FORTRANMODDIR'] = dir
+
+      if buildType == 'debug':
+         fortranFlags = ['-C',
+                         '-g'
+                        ]
+         cFlags = ['-g']
+      elif buildType == 'release':
+         fortranFlags = ['-O2']
+         cFlags = ['-O2']
+      else:
+         print "Unsupported buildType = " + buildType
+         print ""
+         Exit(1)
+
+      env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
+      env.Append(F90FLAGS = fortranFlags)
+      env.Append(CCFLAGS = cFlags)
+
+   elif fcompiler == 'nag':
+      env = Environment(options = opts, tools=['f90', 'default'])
+      env.Append(ENV = {'PATH' : os.environ['PATH']})
+      env['CCFLAGS'] = ['-w']
+      env['CPPDEFINES'] = ['LINUX']
+
+      env['LINK'] = 'nagfor'
+      env['LINKFLAGS'] = ['-unsharedrts',
+                         ]
+
+      env['F90'] = 'nagfor'
+      env['F90FLAGS'] = ['-maxcontin=75',
+                         '-kind=byte'
+                        ]
+      env['F90PATH'] = ["#" + tpr_build_dir,
+                        "#" + trace_build_dir,
+                        '#' + iapws_build_dir,
+                        '#' + common_build_dir,
+                        '#' + parcs_build_dir,
+                       ]
+
+      env['FORTRANMODDIRPREFIX'] = '-mdir '
+      dir = env.Dir("#/" + trace_build_dir)
+      env['FORTRANMODDIR'] = dir
+
+      if buildType == 'debug':
+         fortranFlags = ['-O0',
+                         '-gline',
+                         '-nan',
+                         '-w=all',
+                         '-g'
+                        ]
+         cFlags = ['-g']
+      elif buildType == 'release':
+         fortranFlags = ['-O2']
+         cFlags = ['-O2']
+      else:
+         print "Unsupported buildType = " + buildType
+         print ""
+         Exit(1)
+
+      env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
+      env.Append(F90FLAGS = fortranFlags)
+      env.Append(CCFLAGS = cFlags)
+
+   elif fcompiler == 'g95':
+      env = Environment(options = opts, tools=['fortran', 'f90', 'default'])
+      env.Append(ENV = {'PATH' : os.environ['PATH']})
+      env['CCFLAGS'] = ['-w']
+      env['CPPDEFINES'] = ['LINUX']
+      env['LINK'] = 'g95'
+      env['LINKFLAGS'] = ''
+      env['F90'] = 'g95'
+      env['F90FLAGS'] = '-fno-second-underscore'
+      env['F90PATH'] = ["#" + tpr_build_dir,
+                        '#' + iapws_build_dir,
+                        '#' + common_build_dir,
+                        '#' + parcs_build_dir,
+                       ]
+
+      env['FORTRANMODDIRPREFIX'] = '-fmod='
+      dir = env.Dir("#/" + trace_build_dir)
+      env['FORTRANMODDIR'] = dir
+
+      if buildType == 'debug':
+         fortranFlags = ['-g','-fbounds-check','-ftrace=frame']
+         cFlags = ['-g']
+      elif buildType == 'release':
+         fortranFlags = ['']
+         cFlags = ['-O2']
+      else:
+         print "Unsupported buildType = " + buildType
+         print ""
+         Exit(1)
+
+      env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
+      env.Append(F90FLAGS = fortranFlags)
+      env.Append(CCFLAGS = cFlags)
+
+   elif fcompiler == 'gfortran':
+      env = Environment(options = opts, tools=['fortran', 'f90', 'default'])
+      env.Append(ENV = {'PATH' : os.environ['PATH']})
+      env['CCFLAGS'] = ['-w']
+      env['CPPDEFINES'] = ['LINUX']
+      env['LINK'] = 'gfortran'
+      env['LINKFLAGS'] = ''
+      env['F90'] = 'gfortran'
+      env['F90FLAGS'] = '-fno-second-underscore'
+      env['F90PATH'] = ["#" + tpr_build_dir,
+                        '#' + iapws_build_dir,
+                        '#' + common_build_dir,
+                        '#' + parcs_build_dir,
+                       ]
+
+      env['FORTRANMODDIRPREFIX'] = '-J'
+      dir = env.Dir("#/" + trace_build_dir)
+      env['FORTRANMODDIR'] = dir
+
+      if buildType == 'debug':
+         fortranFlags = ['-g']
+         cFlags = ['-g']
+      elif buildType == 'release':
+         fortranFlags = ['']
+         cFlags = ['-O2']
+      else:
+         print "Unsupported buildType = " + buildType
+         print ""
+         Exit(1)
+
+      env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
+      env.Append(F90FLAGS = fortranFlags)
+      env.Append(CCFLAGS = cFlags)
+
+   elif fcompiler == 'intel':
+      env = Environment(options = opts, tools=['f90', 'default'])
+      env.Append(ENV = {'PATH' : os.environ['PATH']})
+      env['CCFLAGS'] = ['-w']
+      env['CPPDEFINES'] = ['LINUX_INTEL']
+      env['LINK'] = 'ifort'
+      env['LINKFLAGS'] = ['-static',
+                          '-Bstatic']
+#                         '-Bdynamic']
+      env['F90'] = 'ifort'
+      env['F90FLAGS'] = ''
+      env['F90PATH'] = ["#" + tpr_build_dir,
+                        '#' + iapws_build_dir,
+                        '#' + common_build_dir,
+                        '#' + parcs_build_dir,
+                       ]
+
+      env['FORTRANMODDIRPREFIX'] = ['-module ']
+      dir = env.Dir("#/" + trace_build_dir)
+      env['FORTRANMODDIR'] = dir
+
+      if buildType == 'debug':
+         fortranFlags = ['-g',
+                         '-traceback',
+                         '-check', 'uninit',
+                         '-check', 'bounds',
+                         '-no-ftz',
+                         '-fpe0',
+                        ]
+         cFlags = ['-g']
+      elif buildType == 'release':
+         fortranFlags = ['-O1']
+         cFlags = ['-O2']
+      else:
+         print "Unsupported buildType = " + buildType
+         print ""
+         Exit(1)
+
+      env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
+      env.Append(F90FLAGS = fortranFlags)
+      env.Append(CCFLAGS = cFlags)
+
+   else:
+      print "Compiler " + fcompiler + " is currently unsupported on the " + platform + " platform"
+      print ""
+
+elif platform == 'darwin':
+
+   if fcompiler == 'absoft':
+      print "Compiler " + fcompiler + " is currently unsupported on the " + platform + " platform"
+      print ""
+   elif fcompiler == 'nag':
+      print "Compiler " + fcompiler + " is currently unsupported on the " + platform + " platform"
+      print ""
+   elif fcompiler == 'xlf':
+      print "Compiler " + fcompiler + " is currently unsupported on the " + platform + " platform"
+      print ""
+   elif fcompiler == 'g95':
+      env = Environment(options = opts, tools=['fortran', 'f90', 'default'])
+      print os.environ['PATH']
+      env.Append(ENV = {'PATH' : os.environ['PATH']})
+      env['CCFLAGS'] = ['-w']
+      env['CPPDEFINES'] = ['MACOSX']
+      env['LINK'] = '/usr/local/bin/g95'
+      env['LINKFLAGS'] = '-ISystemStubs'
+      env['F90'] = '/usr/local/bin/g95'
+      env['F90FLAGS'] = '-fno-second-underscore'
+      env['F90PATH'] = [tpr_build_dir,
+                        iapws_build_dir,
+                        common_build_dir,
+                        parcs_build_dir,
+                       ]
+      env['FORTRANMODDIRPREFIX'] = '-fmod='
+      dir = env.Dir(trace_build_dir)
+      env['FORTRANMODDIR'] = dir
+
+      if buildType == 'debug':
+         fortranFlags = ['-g']
+         cFlags = ['-g']
+      elif buildType == 'release':
+         fortranFlags = ['-msse3']
+         cFlags = ['-msse3']
+      else:
+         print "Unsupported buildType = " + buildType
+         print ""
+         Exit(1)
+
+      env.Append(F90FLAGS = fortranFlags)
+      env.Append(CCFLAGS = cFlags)
+
+   elif fcompiler == 'intel':
+      env = Environment(options = opts, tools=['f90', 'default'])
+      env.Append(ENV = {'PATH' : os.environ['PATH']})
+      env['RANLIBFLAGS'] = ['-c']
+
+      if target_arch == 'x86':
+        env['CCFLAGS'] = ['-w',
+                          '-m32',
+                         ]
+      elif target_arch == 'x86_64':
+        env['CCFLAGS'] = ['-w',
+                          '-m64',
+                         ]
+      else:
+        print target_arch + ": Architecture type not supported"
+        print ""
+
+      env['CPPDEFINES'] = ['MACOSX']
+      env['LINK'] = 'ifort'
+      env['LINKFLAGS'] = ['-g']
+      env['F90'] = 'ifort'
+      env['F90FLAGS'] = ''
+      env['F90PATH'] = ['#' + tpr_build_dir,
+                        '#' + iapws_build_dir,
+                        '#' + common_build_dir,
+                       ]
+
+      env['FORTRANMODDIRPREFIX'] = '-module '
+      dir = env.Dir("#/" + trace_build_dir)
+      env['FORTRANMODDIR'] = dir
+
+      if buildType == 'debug':
+         fortranFlags = ['-g',
+                         '-traceback',
+                         '-check', 'uninit',
+                         '-check', 'bounds',
+                         '-no-ftz',
+                         '-fpe0',
+                        ]
+         cFlags = ['-g']
+      elif buildType == 'release':
+         fortranFlags = ['-O1']
+         cFlags = ['-O2']
+      else:
+         print "Unsupported buildType = " + buildType
+         print ""
+         Exit(1)
+
+      env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
+      env.Append(F90FLAGS = fortranFlags)
+      env.Append(CCFLAGS = cFlags)
+   elif fcompiler == 'gfortran':
+      env = Environment(options = opts, tools=['fortran', 'f90', 'default'])
+      env.Append(ENV = {'PATH' : os.environ['PATH']})
+      env['CCFLAGS'] = ['-w']
+      env['CPPDEFINES'] = ['MACOSX']
+      env['LINK'] = 'gfortran'
+      env.Tool('gnulink')
+      env['LINKFLAGS'] = '-ISystemStubs'
+      env['F90'] = 'gfortran'
+      env['F90FLAGS'] = '-fno-underscoring',
+      env['F90PATH'] = [tpr_build_dir,
+                        common_build_dir,
+                       ]
+
+      env['FORTRANMODDIRPREFIX'] = '-J'
+      dir = env.Dir(trace_build_dir)
+      env['FORTRANMODDIR'] = dir
+
+      if buildType == 'debug':
+         fortranFlags = ['-g']
+         cFlags = ['-g']
+      elif buildType == 'release':
+         fortranFlags = ['']
+         cFlags = ['-O2']
+      else:
+         print "Unsupported buildType = " + buildType
+         print ""
+         Exit(1)
+
+      env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
+      env.Append(F90FLAGS = fortranFlags)
+      env.Append(CCFLAGS = cFlags)
+else:
+   print "Unsupported platform = " + platform
+
+# Make the build output prettier for all build environments
+#env['LINKCOMSTR'] = "Linking... $TARGET"
+
+#  Print out the construction variables for debugging purposes if the user requests it
+if env['verbose'] == 1:
+   build_utils.DumpEnv(env)
+
+######################################################
+#  Build the library
+######################################################
+
+if (projectType=='exe'):
+   if fcompiler == 'ifort12' or fcompiler == 'ifort16' or fcompiler == 'ifort17':
+       trace = env.Program(target = "trace", source = [srcs, common_target, tpr_target])
+   else:
+      trace = env.Program(target = "trace", source = [srcs, common_target, tpr_target])
+elif (projectType=='shared'):
+   trace = env.SharedLibrary(target = "trace", source = [srcs, common_target, tpr_target])
+else:
+   trace = env.StaticLibrary(target = "trace", source = [srcs, common_target, tpr_target])
+
+######################################################
+# Build the Visual Studio Project file when under Windows
+######################################################
+#if env['PLATFORM'] == 'cygwin' or env['PLATFORM'] == 'win32':
+#if env['PLATFORM'] == 'win32':
+#   env.MSVSProject(target = 'trace' + env['MSVSPROJECTSUFFIX'],
+#                   srcs = srcs,
+#                   buildtarget = trace,
+#                   variant = 'Debug')
+#
+Return("trace")
