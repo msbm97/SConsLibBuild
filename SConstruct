@@ -68,7 +68,8 @@ Export([
         'trace_build_dir',
         'common_build_dir',
         'fortranFlags',
-        'absPath'
+        'absPath',
+        'platform'
       ])
 
 ####################
