@@ -24,6 +24,7 @@ rpath_var = common_build_dir+os.sep+'libcommon.so'
 
 env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
 env.Append(F90FLAGS = fortranFlags)
+env['RPATHPREFIX']='-Wl,-rpath '
 
 ######################################################
 #  Build the library
