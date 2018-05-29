@@ -32,8 +32,8 @@ if platform=='darwin':
 ######################################################
 
 trace = env.SharedLibrary(target = "trace", source = srcs,
-                          LIBS = 'common',
-                          #LIBPATH = common_build_dir,
+                          LIBS = ['common'],
+                          LIBPATH = [common_build_dir],
                           RPATH= common_build_dir)
 
 ######################################################
