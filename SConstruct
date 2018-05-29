@@ -56,9 +56,10 @@ env['LINKFLAGS'] = '-ISystemStubs'
 #  Establish the names of the build directories  #
 ##################################################
 
-build_root = os.getcwd()+ os.sep+ 'build' + os.sep + platform +os.sep
+build_root = os.getcwd()+os.sep+'build' + os.sep + platform +os.sep
 common_build_dir = build_root + 'common'
 trace_build_dir = build_root + 'src'
+absPath = os.getcwd()+os.sep
 
 #  Make these directory names available to all other SConscript files
 Export([
@@ -66,7 +67,8 @@ Export([
         'opts',
         'trace_build_dir',
         'common_build_dir',
-        'fortranFlags'
+        'fortranFlags',
+        'absPath'
       ])
 
 ####################

@@ -20,7 +20,7 @@ env['F90PATH'] = [common_build_dir]
 dir = env.Dir(trace_build_dir)
 env['FORTRANMODDIR'] = dir
 
-RPATH_Var = common_build_dir+os.sep+'libcommon.dylib'
+rpath_var = common_build_dir+os.sep+'libcommon.so'
 
 env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
 env.Append(F90FLAGS = fortranFlags)
@@ -32,7 +32,7 @@ env.Append(F90FLAGS = fortranFlags)
 trace = env.SharedLibrary(target = "trace", source = srcs,
                           LIBS = 'common',
                           LIBPATH = common_build_dir,
-                          RPATH = RPATH_Var)
+                          RPATH= absPath)
 
 ######################################################
 #
