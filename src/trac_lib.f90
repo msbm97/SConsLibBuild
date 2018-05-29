@@ -24,13 +24,11 @@ END SUBROUTINE trace_init
 !  the output file
 SUBROUTINE trace_finalize
 !
-      USE TPRGlobalSD
       USE IntrType
 
       INTEGER(sik) :: i
 
       i = 0
-      nstep = i
 
 
 END SUBROUTINE trace_finalize
