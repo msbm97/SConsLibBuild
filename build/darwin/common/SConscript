@@ -1,36 +1,33 @@
 #!/bin/python
-""" SConscript for main TRACE source code"""
+""" SConscript for common module library"""
 
 ######################################################
-#  SConscript file for main TRACE source code
+#  SConscript file for the common module library
 ######################################################
+import os
+
 Import('*')
 
 ######################################################
 #  Retrieve list of files that need to be compiled
 ######################################################
-srcs = ['trac_lib.f90']
+srcs = ['IntrTypeM.f90']
 
 ############################################
 #  Customize the construction environment  #
 ############################################
 
-env['F90PATH'] = [common_build_dir]
-dir = env.Dir(trace_build_dir)
+env = Environment(options = opts, tools=['fortran', 'f90', 'default'])
+env.Append(ENV = {'PATH' : os.environ['PATH']})
+dir = env.Dir(common_build_dir)
 env['FORTRANMODDIR'] = dir
-
 env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
 env.Append(F90FLAGS = fortranFlags)
+
 
 ######################################################
 #  Build the library
 ######################################################
+common_lib = env.SharedLibrary(target = "common", source = srcs)
 
-trace = env.SharedLibrary(target = "trace", source = srcs,
-                          LIBS = 'common',
-                          LIBPATH = common_build_dir,
-                          RPATH = common_build_dir)
-
-######################################################
-#
-Return("trace")
+Return("common_lib")

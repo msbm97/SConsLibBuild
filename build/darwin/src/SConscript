@@ -28,8 +28,7 @@ env.Append(F90FLAGS = fortranFlags)
 
 trace = env.SharedLibrary(target = "trace", source = srcs,
                           LIBS = 'common',
-                          LIBPATH = common_build_dir,
-                          RPATH = common_build_dir)
+                          LIBPATH = common_build_dir)
 
 ######################################################
 #
