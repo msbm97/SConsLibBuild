@@ -5,19 +5,13 @@
 #  SConscript file for the common module library
 ######################################################
 import os
-import sys
-import fnmatch
 
 Import('*')
 
 ######################################################
 #  Retrieve list of files that need to be compiled
 ######################################################
-srcs = []
-srcs.append('IntrTypeM.f90')
-
-# The NAG compiler has slightly different usage semantics for
-# command line argument processing routines.
+srcs = ['IntrTypeM.f90']
 
 ############################################
 #  Customize the construction environment  #
@@ -25,26 +19,10 @@ srcs.append('IntrTypeM.f90')
 
 env = Environment(options = opts, tools=['fortran', 'f90', 'default'])
 env.Append(ENV = {'PATH' : os.environ['PATH']})
-env['CCFLAGS'] = ['-w']
-env['CPPDEFINES'] = ['MACOSX']
-env['F90'] = 'gfortran'
-env.Tool('gnulink')
-env['F90FLAGS'] = '-fno-underscoring'
-env['FORTRANMODDIRPREFIX'] = '-J'
 dir = env.Dir(common_build_dir)
 env['FORTRANMODDIR'] = dir
-
-fortranFlags = ['-g']
-
 env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
 env.Append(F90FLAGS = fortranFlags)
-
-
-#  Print out the construction variables for debugging purposes if the user requests it
-#if env['verbose'] == 1:
-#   build_utils.DumpEnv(env)
-
-# Make the build output prettier for all build environments
 
 
 ######################################################

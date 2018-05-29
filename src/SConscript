@@ -4,55 +4,31 @@
 ######################################################
 #  SConscript file for main TRACE source code
 ######################################################
-import os
-import sys
-import fnmatch
-
 Import('*')
 
 ######################################################
 #  Retrieve list of files that need to be compiled
 ######################################################
-srcs = []
-srcs.append('trac_lib.f90')
-
+srcs = ['trac_lib.f90']
 
 ############################################
 #  Customize the construction environment  #
 ############################################
 
-env = Environment(options = opts, tools=['fortran', 'f90', 'default'])
-env.Append(ENV = {'PATH' : os.environ['PATH']})
-
-env['LINK'] = 'gfortran'
-env.Tool('gnulink')
-env['LINKFLAGS'] = '-ISystemStubs'
-env['F90'] = 'gfortran'
-env['F90FLAGS'] = '-fno-underscoring',
 env['F90PATH'] = [common_build_dir]
-
-env['FORTRANMODDIRPREFIX'] = '-J'
 dir = env.Dir(trace_build_dir)
 env['FORTRANMODDIR'] = dir
 
-fortranFlags = ['-g']
-
 env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
 env.Append(F90FLAGS = fortranFlags)
-
-
-
-
-# Make the build output prettier for all build environments
-#env['LINKCOMSTR'] = "Linking... $TARGET"
-
-#  Print out the construction variables for debugging purposes if the user requests it
 
 ######################################################
 #  Build the library
 ######################################################
 
-trace = env.SharedLibrary(target = "trace", source = [srcs, common_target])
+trace = env.SharedLibrary(target = "trace", source = srcs,
+                          LIBS = 'common',
+                          LIBPATH = common_build_dir)
 
 ######################################################
 #
