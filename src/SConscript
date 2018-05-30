@@ -22,10 +22,12 @@ env['FORTRANMODDIR'] = dir
 
 rpath_var = common_build_dir+os.sep+'libcommon.so'
 
-env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
+# env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
 env.Append(F90FLAGS = fortranFlags)
-if platform=='darwin':
-  env['RPATHPREFIX']='-Wl,-rpath '
+# if platform=='darwin':
+#   env['RPATHPREFIX']='-Wl,-rpath '
+#   env.Append(SHLINKFLAGS = '-install_name \"@rpath/${TARGET.file}\"')
+
 
 ######################################################
 #  Build the library
@@ -35,6 +37,8 @@ trace = env.SharedLibrary(target = "trace", source = srcs,
                           LIBS = ['common'],
                           LIBPATH = [install_dir],
                           RPATH= install_dir)
+
+# print env.Dump()
 
 ######################################################
 #

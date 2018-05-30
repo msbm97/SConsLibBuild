@@ -14,7 +14,7 @@ print ""
 #  Append an option to this list to add a new option to the build script
 optionList = [
                PathVariable('install_dir', 'Location where the TRACE executable is installed', 'bin', PathVariable.PathIsDirCreate),
-               EnumVariable('fc', 'Fortran compiler to use. Supported compilers are', '', ['gfortran']),
+               EnumVariable('fc', 'Fortran compiler to use. Supported compilers are', '', ['gfortran-mp-7']),
                EnumVariable('cc', 'C compiler to use. Supported compilers are', '', ['gcc']),
              ]
 
@@ -45,12 +45,15 @@ Default(['src',])
 
 env = Environment(options = opts, tools=['fortran', 'f90', 'default'])
 env.Append(ENV = {'PATH' : os.environ['PATH']})
-env['F90'] = 'gfortran'
+env['F90'] = '/opt/local/bin/gfortran-mp-7'
+env['FORTRAN'] = '/opt/local/bin/gfortran-mp-7'
 env.Tool('gnulink')
 env['F90FLAGS'] = '-fno-underscoring'
 env['FORTRANMODDIRPREFIX'] = '-J'
 fortranFlags = ['-g']
 env['LINKFLAGS'] = '-ISystemStubs'
+
+
 
 ##################################################
 #  Establish the names of the build directories  #
@@ -78,6 +81,12 @@ Export([
 ####################
 #  Build the code  #
 ####################
+
+if platform=='darwin':
+  env['RPATHPREFIX']='-Wl,-rpath '
+  env.Append(SHLINKFLAGS = '-install_name \"@rpath/${TARGET.file}\"')
+
+
 
 common_target  = env.SConscript('common/SConscript',  variant_dir=common_build_dir,  exports='env', duplicate=1)
 trace_target   = env.SConscript('src/SConscript',   variant_dir=trace_build_dir,   exports='env',

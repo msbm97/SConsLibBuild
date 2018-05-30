@@ -20,6 +20,9 @@ srcs = ['IntrTypeM.f90']
 env = Environment(options = opts, tools=['fortran', 'f90', 'default'])
 env.Append(ENV = {'PATH' : os.environ['PATH']})
 dir = env.Dir(common_build_dir)
+env['F90']=fcompiler
+env['FORTRAN'] = env['F90']
+
 env['FORTRANMODDIR'] = dir
 env.Append(F90COM = ' 2>&1 | tee ${SOURCES.base}.diag')
 env.Append(F90FLAGS = fortranFlags)
@@ -28,7 +31,13 @@ env.Append(F90FLAGS = fortranFlags)
 ######################################################
 #  Build the library
 ######################################################
-common_lib = env.SharedLibrary(target = "common", source = srcs)
+if platform=='darwin':
+  env['RPATHPREFIX']='-Wl,-rpath '
+  env.Append(SHLINKFLAGS = '-install_name \"@rpath/${TARGET.file}\"')
+
+
+common_lib = env.SharedLibrary(target = "common", source = srcs, 
+                               FORTRAN='/opt/local/bin/gfortran-mp-7')
 env.Install(install_dir, common_lib)
 
 Return("common_lib")
