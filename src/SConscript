@@ -16,7 +16,7 @@ srcs = ['trac_lib.f90']
 #  Customize the construction environment  #
 ############################################
 
-env['F90PATH'] = [common_build_dir]
+#env['F90PATH'] = [common_build_dir]
 dir = env.Dir(trace_build_dir)
 env['FORTRANMODDIR'] = dir
 
@@ -30,11 +30,11 @@ if platform=='darwin':
 ######################################################
 #  Build the library
 ######################################################
-
+print install_dir
 trace = env.SharedLibrary(target = "trace", source = srcs,
                           LIBS = ['common'],
-                          LIBPATH = [common_build_dir],
-                          RPATH= common_build_dir)
+                          LIBPATH = [install_dir],
+                          RPATH= install_dir)
 
 ######################################################
 #

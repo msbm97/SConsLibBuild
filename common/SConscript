@@ -29,5 +29,6 @@ env.Append(F90FLAGS = fortranFlags)
 #  Build the library
 ######################################################
 common_lib = env.SharedLibrary(target = "common", source = srcs)
+env.Install(install_dir, common_lib)
 
 Return("common_lib")

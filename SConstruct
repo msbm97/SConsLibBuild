@@ -60,6 +60,8 @@ build_root = os.getcwd()+os.sep+'build' + os.sep + platform +os.sep
 common_build_dir = build_root + 'common'
 trace_build_dir = build_root + 'src'
 absPath = os.getcwd()+os.sep
+install_dir = env['install_dir']    # User can override the default install directory
+install_dir = os.getcwd()+os.sep+install_dir
 
 #  Make these directory names available to all other SConscript files
 Export([
@@ -69,7 +71,8 @@ Export([
         'common_build_dir',
         'fortranFlags',
         'absPath',
-        'platform'
+        'platform',
+        'install_dir'
       ])
 
 ####################
@@ -84,6 +87,6 @@ trace_target   = env.SConscript('src/SConscript',   variant_dir=trace_build_dir,
 #  Install the library in a directory that is easier to query  #
 #  get at than the deeply-nested build directories             #
 ################################################################
-install_dir = env['install_dir']    # User can override the default install directory
+
 env.Install(install_dir, [trace_target, common_target])
 env.Alias('install', install_dir)
